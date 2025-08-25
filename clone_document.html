@@ -1,0 +1,117 @@
+<!-- ALN_CLONER_START -->
+<div data-aln-cloner=1 style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fafafa">
+    <div style="font-weight:600;margin-bottom:4px">Template Cloner</div>
+    <div style="color:#555;margin-bottom:8px">Status:</div>
+    <div id="clone-status" style="white-space:pre-wrap;border:1px dashed #cbd5e1;padding:10px;border-radius:8px;background:#fff">Ready.</div>
+  
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+      <button style="padding:8px 12px;border-radius:8px;border:1px solid #0ea5e9;background:#0ea5e9;color:#fff;cursor:pointer"
+        onclick="(async function(){
+          var st=document.getElementById('clone-status'),S=function(x){st.textContent=x},W=function(ms){return new Promise(function(r){setTimeout(r,ms)})};
+          var id=(location.pathname.match(/\/document\/(\d+)\b/)||[])[1]||location.pathname.split('/')[3];
+          var G=function(){if(window.crypto&&window.crypto.getRandomValues){var b=new Uint8Array(16);window.crypto.getRandomValues(b);return Array.from(b).map(function(x){return('0'+x.toString(16)).slice(-2)}).join('')}return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2)};
+          var marker='CLONE_GUID_'+G();
+          var addMarker=function(h){h=h||'';return h.indexOf(marker)!==-1?h:h+' <span hidden aria-hidden=true>['+marker+']</span>'};
+          var rmMarker=function(h){return (h||'').replace(/\[CLONE_GUID_[^\]]+\]/g,'')};
+          var stamp=function(d){var mm=d.getMonth()+1,dd=d.getDate(),yy=d.getFullYear(),hh=d.getHours(),mi=(''+d.getMinutes()).padStart(2,'0');return mm+'-'+dd+'-'+yy+' '+hh+':'+mi};
+  
+          // strip cloner UI from a description HTML string
+          var stripCloner=function(html){
+            html=html||'';
+            try{
+              html=html.replace(/<!--\s*ALN_CLONER_START\s*-->[\s\S]*?<!--\s*ALN_CLONER_END\s*-->/g,'');
+              var d=new DOMParser().parseFromString('<div>'+html+'</div>','text/html');
+              var root=d.body;
+              // explicit wrapper removal
+              root.querySelectorAll('[data-aln-cloner]').forEach(function(n){ n.remove(); });
+              // remove container around #clone-status or Template Cloner text if wrapper was stripped
+              var status=root.querySelector('#clone-status');
+              if(status){
+                var c=status; while(c&&c.tagName==='DIV'){ if((c.textContent||'').toLowerCase().indexOf('template cloner')!==-1){ c.remove(); break; } c=c.parentElement; }
+              }
+              // fallback: remove any element that contains the header text
+              root.querySelectorAll('div,section').forEach(function(n){
+                var t=(n.textContent||'').toLowerCase();
+                if(t.indexOf('template cloner')!==-1||t.indexOf('clone this template')!==-1){ n.remove(); }
+              });
+              // remove any leftover GUID spans
+              root.querySelectorAll('span').forEach(function(n){ if((n.textContent||'').indexOf('CLONE_GUID_')!==-1) n.remove(); });
+              return root.innerHTML;
+            }catch(e){ return html; }
+          };
+  
+          S('Getting CSRF...');
+          var aR=await fetch('/account/auth/',{credentials:'same-origin',cache:'no-store'}),aH=await aR.text(); if(!aR.ok){S('Failed /account/auth/: '+aR.status);return}
+          var p=new DOMParser().parseFromString(aH,'text/html'),m=p.querySelector('meta[name=csrf-token]'),i=p.querySelector('input[name=csrfmiddlewaretoken]'); var CS=(m&&m.content)||(i&&i.value)||''; if(!CS){var mw=aH.match(/window\.\s*CSRF\s*=\s*'([^']+)'/i); CS=mw?mw[1]:''} if(!CS){S('Could not find CSRF token.');return}
+  
+          try{
+            S('Fetching source doc '+id+' ...');
+            var sR=await fetch('/integration/v2/document/?id='+id+'&deleted=false&limit=1&skip=0',{credentials:'same-origin',headers:{accept:'application/json'}}); if(!sR.ok){S('GET failed: '+sR.status);return}
+            var sA=await sR.json(),src=Array.isArray(sA)?sA[0]:sA;
+  
+            S('Locating target folder...');
+            var an=await fetch('/api/v1/documentation/ancestors/glossary_term/'+encodeURIComponent(id)+'/',{credentials:'same-origin',headers:{accept:'application/json'},cache:'no-store'}); if(!an.ok){S('Ancestors failed: '+an.status);return}
+            var anc=await an.json(),ct=anc.collection_type_id,cur=anc.parent_folder_id||(src.folder_ids&&src.folder_ids[0])||null;
+  
+            var fU='/api/v3/glossary/?collection_type_id='+encodeURIComponent(ct)+'&enable_server_count=true&exclude_subfolders=true&limit=200&order_by=title&skip=0&values=id,title,otype&get_response_object=true';
+            var fr=await fetch(fU,{credentials:'same-origin',headers:{accept:'application/json'},cache:'no-store'}); if(!fr.ok){S('Folder list failed: '+fr.status);return}
+            var fj=await fr.json(),its=(fj&&fj.items)||[],tgt=its.find(function(x){return (x.title||'').trim().toLowerCase()==='template output'}),parent=tgt?tgt.id:cur; if(!tgt) S('Target folder Template Output not found. Using current folder...');
+  
+            S('Snapshotting collection...');
+            var L='/api/v2/term/?collection_type_id='+encodeURIComponent(ct)+'&enable_server_count=true&limit=200&order_by=title&search=&skip=0&values=id,title,description,otype&get_response_object=true';
+            var bR=await fetch(L,{credentials:'same-origin',headers:{accept:'application/json'},cache:'no-store'}); if(!bR.ok){S('List snapshot failed: '+bR.status);return}
+            var bf=await bR.json(),seen=new Set((bf.items||[]).map(function(x){return x.id}));
+  
+            var base=(src.title&&String(src.title).trim())?src.title:('Document '+src.id),ttl=base+' ('+stamp(new Date())+')';
+            var nav=(src.nav_link_folder_ids||[]).filter(function(f){return String(f)!==String(parent)});
+            // 1) strip cloner UI  2) add hidden marker for detection
+            var cleaned=stripCloner(src.description||''); var descWithMarker=addMarker(cleaned);
+  
+            var item={title:ttl,document_hub_id:src.document_hub_id,description:descWithMarker,template_id:src.template_id,parent_folder_id:parent};
+            if(src.custom_fields&&src.template_id){
+              var fcf=src.custom_fields.filter(function(cf){return (cf.field_name||'').trim().toLowerCase()!=='clone template'}).map(function(cf){return {field_id:cf.field_id,value:cf.value}});
+              if(fcf.length) item.custom_fields=fcf;
+            }
+            if(nav&&nav.length) item.nav_link_folder_ids=nav;
+  
+            S('Cloning to '+(tgt?'Template Output':'current folder')+' ...');
+            var cR=await fetch('/integration/v2/document/',{method:'POST',credentials:'same-origin',headers:{accept:'application/json','content-type':'application/json','X-CSRFToken':CS,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify([item])});
+            var cT=await cR.text(); if(cR.status===400){S('Create failed (validation).');return} if(!cR.ok){S('Create failed: '+cR.status);return}
+  
+            var tries=40,found=null;
+            for(var n=1;n<=tries;n++){
+              S('Waiting for new document ('+n+'/'+tries+') ...');
+              try{
+                var pr=await fetch(L,{credentials:'same-origin',headers:{accept:'application/json'},cache:'no-store'}); if(!pr.ok){await W(Math.min(1500+n*250,4000));continue}
+                var lj=await pr.json(),arr=lj.items||[];
+                for(var k=0;k<arr.length;k++){var it=arr[k]; if(seen.has(it.id)) continue; if((it.description||'').indexOf(marker)!==-1){found=it.id;break}}
+                if(found) break;
+              }catch(e){}
+              await W(Math.min(1500+n*250,4000));
+            }
+  
+            if(found){
+              // best-effort: remove the GUID marker from the new doc immediately
+              try{
+                var cleanFinal=rmMarker(cleaned);
+                await fetch('/integration/v2/document/',{
+                  method:'PUT',credentials:'same-origin',
+                  headers:{accept:'application/json','content-type':'application/json','X-CSRFToken':CS,'X-Requested-With':'XMLHttpRequest'},
+                  body:JSON.stringify([{id:found,description:cleanFinal}])
+                });
+              }catch(e){}
+              var href=location.origin+'/app/document/'+found+'/overview';
+              st.textContent='Clone complete! ';
+              var a=document.createElement('a'); a.href=href;a.target='_blank';a.rel='noopener';a.textContent='Open new document'; st.appendChild(a);
+            }else{
+              S('Timed out waiting for the new document. You can refresh the hub or search for: '+ttl);
+            }
+          }catch(e){S('Error: '+String(e))}
+        })()">
+        Clone This Template
+      </button>
+      <span style="color:#64748b;font-size:12px">The box above will update with progress and a link when ready.</span>
+    </div>
+  </div>
+  <!-- ALN_CLONER_END -->
+  
