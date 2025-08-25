@@ -48,3 +48,26 @@ This is a pure-HTML button you paste into an Alation document’s Description fi
 | List terms in collection (polling) | `/api/v2/term/?collection_type_id=<hub_id>…`                     | GET               | Session                                              |
 | Create clone                       | `/integration/v2/document/`                                      | POST (array body) | **Session + CSRF**                                   |
 | Cleanup marker                     | `/integration/v2/document/`                                      | PUT (array body)  | **Session + CSRF** (may be token-gated in some envs) |
+
+## Disclaimer
+
+**Non-Product / No Support**\
+This snippet and guidance are provided by the Alation TAM team as an optional convenience. They are not part of Alation’s core product, are not officially supported, and are not covered by any subscription, support agreement, or SLA.
+
+**Use at Your Own Risk**\
+Use of this code is entirely at your own risk. You are responsible for testing, validating, securing, and operating it in your own environment. The TAM team and Alation assume no liability for any direct, indirect, incidental, or consequential damages arising from its use.
+
+**“As Is” / No Warranty**\
+The code and documentation are provided “as is”, without warranties of any kind—express or implied—including but not limited to fitness for a particular purpose, merchantability, or non-infringement. Functionality may break due to product changes, browser updates, configuration differences, or API changes without notice.
+
+**No Security Guarantees**\
+This snippet interacts with your tenant using the end user’s browser session and CSRF token. You are responsible for ensuring compliance with your organization’s security, privacy, and governance policies (e.g., least privilege, data handling, logging/PII, access controls).
+
+**Environment & Data Responsibility**\
+Test thoroughly in a non-production environment before any wider use. Maintain backups and recovery procedures. Verify that the logic aligns with your tenant configuration, templates, and access controls.
+
+**Change & Removal**\
+Alation may modify or remove related endpoints or behaviors at any time. The TAM team does not commit to maintaining compatibility or issuing fixes.
+
+**Acceptance**\
+By using, copying, or modifying this snippet, you acknowledge and agree to the terms above. If you require a supported solution, please work with your Alation account team on productized or services-scoped options.
